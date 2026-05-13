@@ -1,0 +1,59 @@
+name: Linter
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - '*/develop'
+      - main
+  push:
+    branches:
+      - '*/develop'
+      - main
+jobs:
+  prepare:
+    runs-on: [self-hosted, linux, {your-org}]
+    outputs:
+      commit_message: ${{ steps.set_env.outputs.commit_message }}
+    steps:
+      - name: Checkout using my visa
+        uses: actions/checkout@v6
+      - name: Set env to outputs
+        id: set_env
+        shell: bash
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=format:%B)
+          {
+            echo "commit_message<<EOF"
+            printf '%s\n' "$COMMIT_MSG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  lint:
+    name: lint
+    runs-on: [self-hosted, linux, {your-org}]
+    needs: [prepare]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.4"
+      - name: Install Black and Ruff
+        run: python -m pip install black==24.10.0 ruff>=0.6.9
+      - name: Run Black
+        run: black --check --exclude "/(migrations|proto)/" src/
+      - name: Run Ruff
+        run: ruff check --exclude "**/migrations/**" --exclude "**/proto/**" src/
+
+  test:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+      - lint
+    steps:
+      - name: Dummy test step
+        run: echo "Skipping tests for now. Will add later."
+
+#TODO: Add test job here 

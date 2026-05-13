@@ -1,0 +1,26 @@
+services:
+  redis:
+    image: redis:8.0.3
+    command:
+      [
+        "redis-server",
+        "/usr/local/etc/redis/redis.conf",
+        "--requirepass",
+        "${REDIS_PASSWORD}",
+      ]
+    sysctls:
+      - net.core.somaxconn=65535
+    volumes:
+      - ./data:/data
+      - ./config:/usr/local/etc/redis
+    ports:
+      - "${EXPOSED_PORT}:6379"
+    restart: always
+  redis-exporter:
+    image: quay.io/oliver006/redis_exporter
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "1${EXPOSED_PORT}:9121"
+    restart: always

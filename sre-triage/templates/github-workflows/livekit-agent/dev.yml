@@ -1,0 +1,83 @@
+name: Build and Deploy to DEV env
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "k8s/**"
+
+env:
+  IMAGE_NAME: {ECR_PREFIX}livekit-agent
+  IMAGE_TAG_SUBFIX: "-dev"
+  APP_NAME: livekit-agent
+  APP_ENV: dev
+  image_build_args: |
+    TEST_ID=${{ github.run_id }}
+    GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prepare:
+    runs-on: [self-hosted, linux, {your-org}]
+    outputs:
+      image_tag: ${{ steps.set_env.outputs.image_tag }}
+      commit_message: ${{ steps.set_env.outputs.commit_message }}
+    steps:
+      - name: Checkout using my visa
+        uses: actions/checkout@v4
+      - name: Set env to outputs
+        id: set_env
+        run: |
+          echo "image_tag=$(cat k8s/ecr_image_tag | grep -v -e '^\s*$' -e '^#' | awk '{$1=$1;print}')${IMAGE_TAG_SUBFIX}" >> $GITHUB_OUTPUT
+          echo 'commit_message<<EOF' >> $GITHUB_OUTPUT
+          echo $(git log -1 --pretty=format:'%B') >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+  test:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs: prepare
+    steps:
+      - name: Build and push
+        uses: {your-github-org}/action-docker-build@v1
+        with:
+          tags: ${{ needs.prepare.outputs.image_tag }}-test
+          outputs: ""
+          push: false
+          context: src/
+          target: test
+          build-args: ${{ env.image_build_args }}
+
+  build-and-push:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+      - test
+    steps:
+      - name: Build and push
+        uses: {your-github-org}/action-docker-build@v1
+        with:
+          tags: ${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.image_tag }}
+          context: src/
+          target: runtime
+          build-args: ${{ env.image_build_args }}
+
+  deploy:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+      - build-and-push
+    steps:
+      - name: Trigger deployment
+        uses: {your-github-org}/argo-deployer@v2
+        with:
+          deployer_url: ${{ vars.ARGO_DEPLOYER_URL }}
+          deployer_auth: ${{ secrets.ARGO_DEPLOYER_AUTH }}
+          application: ${{ env.APP_NAME }}
+          environment: ${{ env.APP_ENV }}
+          image_tag: ${{ needs.prepare.outputs.image_tag }}
+          message: "${{ github.actor }}: ${{ needs.prepare.outputs.commit_message }}"

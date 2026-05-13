@@ -1,0 +1,32 @@
+services:
+  worker:
+    image: {ECR_PREFIX}system/github-runner:latest
+    environment:
+      RUNNER_SCOPE: org
+      ORG_NAME: {your-org}
+      APP_ID: 1001234
+      APP_LOGIN: {your-org}
+      APP_PRIVATE_KEY: |-
+        -----BEGIN RSA PRIVATE KEY-----
+        ***
+        -----END RSA PRIVATE KEY-----
+      RUNNER_WORKDIR: /tmp/runner
+      LABELS: linux,x64,{your-org}
+      EPHEMERAL: 1
+    # entrypoint: /runner.entrypoint.sh
+    # command: ["./bin/Runner.Listener", "run", "--startuptype", "service"]
+    restart: always
+    security_opt:
+      # needed on SELinux systems to allow docker container to manage other docker containers
+      - label:disable
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      - /tmp/github-actions
+      # note: a quirk of docker-in-docker is that this path
+      # needs to be the same path on host and inside the container,
+      # docker mgmt cmds run outside of docker but expect the paths from within
+      # mount containerd.sock for using nerdctl
+      - '/root/.docker/config.json:/root/.docker/config.json'
+      - '/root/.docker/buildx:/root/.docker/buildx'
+    deploy:
+      replicas: 3

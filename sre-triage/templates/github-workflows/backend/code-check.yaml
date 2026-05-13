@@ -1,0 +1,63 @@
+name: Code Check
+
+on:
+  pull_request:
+    branches:
+      - uat
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  lint-and-test:
+    runs-on: [self-hosted, linux, {your-org}]
+    services:
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+        with:
+          version: "0.12.7"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install poetry
+      - run: poetry install
+      - name: Write Firebase credentials
+        run: |
+          mkdir -p credentials
+          echo "${{ secrets.FIREBASE_CREDENTIALS_JSON }}" | base64 --decode > credentials/aiavatar-firebase-adminsdk.json
+        shell: bash
+      - name: Write IAP credentials
+        run: |
+          mkdir -p credentials
+          echo "${{ secrets.IAP_CREDENTIALS_JSON }}" | base64 --decode > credentials/google-iap-credentials.json
+        shell: bash
+      - name: Unit Tests
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_HOST: localhost
+          POSTGRES_DB: test
+          REDIS_HOST: localhost
+          ANDROID_GOOGLE_CALENDAR_CLIENT_ID: test
+          ANDROID_GOOGLE_CALENDAR_CLIENT_SECRET: test
+          IOS_GOOGLE_CALENDAR_CLIENT_ID: test
+          IOS_GOOGLE_CALENDAR_CLIENT_SECRET: test
+          SUZU_HASH: test
+          SUZU_API_KEY: test
+          AKOOL_CLIENT_ID: 12345
+          AKOOL_CLIENT_SECRET: 12345
+          KLING_SECRET_KEY: 12345
+          KLING_ACCESS_KEY: 12345
+          LINE_AUTOMATION_BASE_URL: test
+          LINE_OA_ENCRYPTION_KEY: test
+          S3_BUCKET: test
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_REGION: test
+          AWS_SESSION_TOKEN: test
+          CDN_URL: test
+        run: poetry run pytest

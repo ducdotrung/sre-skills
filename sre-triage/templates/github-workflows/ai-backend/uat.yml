@@ -1,0 +1,114 @@
+name: Build and Deploy to UAT env
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - closed # This only trigger this workflow when a PR is closed
+  push:
+    branches:
+      - mock
+    paths:
+      - "k8s/**"
+
+env:
+  IMAGE_NAME: {ECR_PREFIX}ai-backend
+  IMAGE_TAG_PREFIX: "uat"
+  APP_NAME: ai-backend
+  APP_ENV: uat
+  image_build_args: |
+    TEST_ID=${{ github.run_id }}
+    AI_CONFIG_SECRET_PASSPHRASE=${{ secrets.AI_CONFIG_SECRET_PASSPHRASE }}
+    AI_CUSTOMER_SECRET_PASSPHRASE=${{ secrets.AICUSTOMER_SECRET_PASSPHRASE }}
+    GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prepare:
+    if: github.event.pull_request.merged == true || github.ref_name == 'mock' # Only trigger pipeline if PR is merged (closed and merged)
+    runs-on: [self-hosted, linux, {your-org}]
+    outputs:
+      image_tag: ${{ steps.set_env.outputs.image_tag }}
+      commit_message: ${{ steps.set_env.outputs.commit_message }}
+      date_build: ${{ steps.set_env.outputs.date_build }}
+    steps:
+      - name: Checkout using my visa
+        uses: actions/checkout@v6
+      - name: Set env to outputs
+        id: set_env
+        run: |
+          echo "date_build=$(TZ='Asia/Ho_Chi_Minh' date +'%y%m%d')" >> $GITHUB_OUTPUT
+          echo "image_tag=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
+          echo 'commit_message<<EOF' >> $GITHUB_OUTPUT
+          echo $(git log -1 --pretty=format:'%B') >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+  lint:
+    name: lint
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.4"
+      - name: Install Black and Ruff
+        run: python -m pip install black==24.10.0 ruff>=0.6.9
+      - name: Run Black
+        run: black --check --exclude "/(migrations|proto)/" src/
+      - name: Run Ruff
+        run: ruff check --exclude "**/migrations/**" --exclude "**/proto/**" src/
+
+  test:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+      - lint
+    steps:
+      - name: Build and push
+        uses: {your-github-org}/action-docker-build@v1
+        with:
+          tags: ${{ needs.prepare.outputs.image_tag }}-test
+          outputs: ""
+          push: false
+          context: .
+          target: test
+          build-args: ${{ env.image_build_args }}
+
+  build-and-push:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+      - test
+    steps:
+      - name: Build and push
+        uses: {your-github-org}/action-docker-build@v1
+        with:
+          tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG_PREFIX }}-${{ needs.prepare.outputs.image_tag }}-${{ needs.prepare.outputs.date_build }}
+          context: .
+          target: runtime
+          build-args: ${{ env.image_build_args }}
+
+  deploy:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+      - build-and-push
+    steps:
+      - name: Trigger deployment
+        uses: {your-github-org}/argo-deployer@v2
+        with:
+          deployer_url: ${{ vars.ARGO_DEPLOYER_URL }}
+          deployer_auth: ${{ secrets.ARGO_DEPLOYER_AUTH }}
+          application: ${{ env.APP_NAME }}
+          environment: ${{ env.APP_ENV }}
+          image_tag: ${{ env.IMAGE_TAG_PREFIX }}-${{ needs.prepare.outputs.image_tag }}-${{ needs.prepare.outputs.date_build }}
+          message: "${{ github.actor }}: ${{ needs.prepare.outputs.commit_message }}"

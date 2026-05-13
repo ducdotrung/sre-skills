@@ -1,0 +1,116 @@
+# SRE Configuration
+
+> **How to use:**
+> 1. Copy this file to `sre-config.md` in the same directory.
+> 2. Fill in every value marked `{fill in}` with your team's actual values.
+> 3. `sre-config.md` is gitignored — your real values stay local and never get committed.
+> 4. The SRE skills read `sre-config.md` at the start of every run.
+>    If `sre-config.md` is missing, skills fall back to this file and warn you.
+
+---
+
+## Atlassian / Jira
+
+| Key | Value |
+|---|---|
+| Jira project key | `YOUR_PROJECT` |
+| Jira cloud ID | `{fill in — from your Atlassian admin panel or API}` |
+| Jira base URL | `https://your-org.atlassian.net` |
+| Confluence space key | `YOUR_SPACE` |
+
+## Slack (optional)
+
+> Remove this section if you are not using the Slack MCP integration.
+> Without Slack configured, the skills save notifications to `output/alerts/` instead.
+
+| Key | Value |
+|---|---|
+| Internal SRE channel ID | `C0XXXXXXXXX` |
+| Team / announce channel ID | `C0XXXXXXXXX` |
+
+## AWS Infrastructure
+
+| Key | Value |
+|---|---|
+| AWS account ID | `{fill in}` |
+| Primary region | `us-east-1` |
+| ECR prefix | `{account-id}.dkr.ecr.{region}.amazonaws.com/` |
+| Secret naming pattern | `eks-{cluster-prefix}-{app-name}` |
+
+## Kubernetes Clusters
+
+| Cluster | Name | Secret prefix |
+|---|---|---|
+| Production | `{fill in}` | `eks-{prod-prefix}-` |
+| Staging | `{fill in}` | `eks-{stag-prefix}-` |
+| UAT / Dev | `{fill in}` | `eks-{uat-prefix}-` |
+
+## Namespaces
+
+| Environment | Namespace |
+|---|---|
+| UAT | `{fill in}` |
+| Dev | `{fill in}` |
+
+## GitHub
+
+| Key | Value |
+|---|---|
+| GitHub organization | `your-github-org` |
+| GitHub Actions runner label | `self-hosted` |
+
+## Confluence Sub-folder Page IDs (optional)
+
+> Only needed if publishing resolution guides to Confluence.
+> Leave blank to save guides locally to `output/guides/` instead.
+> Fill in after your first `/sre-triage` run, or look up IDs in your Confluence space.
+
+| Folder | parentId |
+|---|---|
+| Ticket Resolutions (root) | `{fill in}` |
+| Deploy & Release | `{fill in}` |
+| Secrets & Credentials | `{fill in}` |
+| Debug & Incidents | `{fill in}` |
+| New Resources & Onboarding | `{fill in}` |
+| DNS & Zero Trust | `{fill in}` |
+| Infrastructure Changes | `{fill in}` |
+
+## Triage Dashboard (optional)
+
+> Only needed if maintaining the dashboard in Confluence.
+> Leave blank to use `output/dashboard/triage-dashboard.md` instead.
+
+| Page | pageId |
+|---|---|
+| SRE Triage Dashboard | `{fill in after first run}` |
+
+## Observability URLs
+
+> Update to match your monitoring stack.
+
+| Service | URL |
+|---|---|
+| Metrics (Grafana) | `https://monitor.your-domain.com` |
+| Logs (Graylog/Loki) | `https://log.your-domain.com` |
+| Tracing (Kibana/Jaeger) | `https://tracing.your-domain.com` |
+
+## DevOps Servers
+
+> Update with your actual server IPs or hostnames.
+
+| Role | Host |
+|---|---|
+| DevOps tooling server (Grafana, Graylog, Metabase) | `{fill in}` |
+| APM / tracing server (Elasticsearch, Kibana) | `{fill in}` |
+| Self-hosted GitHub Actions runner | `{fill in}` |
+
+## Redis Servers
+
+> Only relevant if you run Redis on dedicated EC2 instances (not ElastiCache).
+> Remove this section if using ElastiCache or another managed Redis.
+
+| Environment | Host |
+|---|---|
+| Dev / UAT | `{fill in}` |
+| Staging | `{fill in}` |
+| Production | `{fill in}` |

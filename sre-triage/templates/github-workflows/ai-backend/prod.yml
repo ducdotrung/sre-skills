@@ -1,0 +1,102 @@
+name: Build image for Prod by tag and Deploy to STAGING env
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  IMAGE_NAME: {ECR_PREFIX}ai-backend
+  APP_NAME: ai-backend
+  APP_ENV: stag
+  image_build_args: |
+    TEST_ID=${{ github.run_id }}
+    GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+    AI_CONFIG_SECRET_PASSPHRASE=${{ secrets.AI_CONFIG_SECRET_PASSPHRASE }}
+    AI_CUSTOMER_SECRET_PASSPHRASE=${{ secrets.AI_CUSTOMER_SECRET_PASSPHRASE }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prepare:
+    runs-on: [self-hosted, linux, {your-org}]
+    outputs:
+      image_tag: ${{ steps.set_env.outputs.image_tag }}
+      commit_message: ${{ steps.set_env.outputs.commit_message }}
+    steps:
+      - name: Checkout using my visa
+        uses: actions/checkout@v6
+      - name: Set env to outputs
+        id: set_env
+        run: |
+          echo "image_tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo 'commit_message<<EOF' >> $GITHUB_OUTPUT
+          echo $(git log -1 --pretty=format:'%B') >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+  lint:
+    name: lint
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.4"
+      - name: Install Black and Ruff
+        run: python -m pip install black==24.10.0 ruff>=0.6.9
+      - name: Run Black
+        run: black --check --exclude "/(migrations|proto)/" src/
+      - name: Run Ruff
+        run: ruff check --exclude "**/migrations/**" --exclude "**/proto/**" src/
+
+  test:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+      - lint
+    steps:
+      - name: Build and push
+        uses: {your-github-org}/action-docker-build@v1
+        with:
+          tags: ${{ needs.prepare.outputs.image_tag }}-test
+          outputs: ""
+          push: false
+          context: .
+          target: test
+          build-args: ${{ env.image_build_args }}
+
+  build-and-push:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+      - test
+    steps:
+      - name: Build and push
+        uses: {your-github-org}/action-docker-build@v1
+        with:
+          tags: ${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.image_tag }}
+          context: .
+          target: runtime
+          build-args: ${{ env.image_build_args }}
+
+  deploy:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+      - build-and-push
+    steps:
+      - name: Trigger deployment
+        uses: {your-github-org}/argo-deployer@v2
+        with:
+          deployer_url: ${{ vars.ARGO_DEPLOYER_URL }}
+          deployer_auth: ${{ secrets.ARGO_DEPLOYER_AUTH }}
+          application: ${{ env.APP_NAME }}
+          environment: ${{ env.APP_ENV }}
+          image_tag: ${{ needs.prepare.outputs.image_tag }}
+          message: "${{ github.actor }}: ${{ needs.prepare.outputs.commit_message }}"

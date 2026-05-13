@@ -1,0 +1,63 @@
+name: Release llm-agent by TAG
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  IMAGE_NAME: {ECR_PREFIX}ai-avatar-llm-agent
+  APP_NAME: llm-agent
+  APP_ENV: stag
+  image_build_args: |
+    GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  prepare:
+    runs-on: [self-hosted, linux, {your-org}]
+    outputs:
+      image_tag: ${{ steps.set_env.outputs.image_tag }}
+      commit_message: ${{ steps.set_env.outputs.commit_message }}
+    steps:
+      - name: Checkout using my visa
+        uses: actions/checkout@v6
+      - name: Set env to outputs
+        id: set_env
+        run: |
+          echo "image_tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo 'commit_message<<EOF' >> $GITHUB_OUTPUT
+          echo $(git log -1 --pretty=format:'%B') >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+  build-and-push:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+    steps:
+      - name: Build and push
+        uses: {your-github-org}/action-docker-build@v1
+        with:
+          tags: ${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.image_tag }}
+          context: .
+          file: dockers/Dockerfile
+          build-args: ${{ env.image_build_args }}
+
+  deploy:
+    runs-on: [self-hosted, linux, {your-org}]
+    needs:
+      - prepare
+      - build-and-push
+    steps:
+      - name: Trigger deployment
+        uses: {your-github-org}/argo-deployer@v2
+        with:
+          deployer_url: ${{ vars.ARGO_DEPLOYER_URL }}
+          deployer_auth: ${{ secrets.ARGO_DEPLOYER_AUTH }}
+          application: ${{ env.APP_NAME }}
+          environment: ${{ env.APP_ENV }}
+          image_tag: ${{ needs.prepare.outputs.image_tag }}
+          message: "${{ github.actor }}: ${{ needs.prepare.outputs.commit_message }}"

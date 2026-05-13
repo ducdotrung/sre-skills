@@ -1,0 +1,40 @@
+# .local-repos — local repository paths for the SRE skill
+# ============================================================
+# Copy this file to .local-repos, then set each path to your machine.
+# .local-repos is gitignored — never commit it.
+#
+# Format:  repo-name=~/path/to/local/clone
+# Lines starting with # are comments. Blank lines are ignored.
+#
+# The sre-triage and sre-execute skills read this file to:
+#   - Read Helm values when generating deploy guides
+#   - Read Terraform configs for DNS / infra guides
+#   - Read SQL scripts directly instead of fetching raw GitHub URLs
+#   - Look up local config files before suggesting commands
+#
+# If a repo is missing from this file, the skill will attempt:
+#   find ~ -maxdepth 4 -type d -name "{repo-name}" 2>/dev/null | head -1
+# If still not found, the reference is marked {TBD — add to .local-repos}.
+#
+# Update repo names below to match your GitHub organization's repositories.
+# ============================================================
+
+# ── Infrastructure ───────────────────────────────────────────
+terraform=~/DevOps/terraform
+cloudflare-tf=~/DevOps/cloudflare-tf
+cloudflare-zero-trust-tf=~/DevOps/cloudflare-zero-trust-tf
+route53-primary-domain-tf=~/DevOps/route53-primary-domain-tf
+route53-secondary-domain-tf=~/DevOps/route53-secondary-domain-tf
+
+# ── Kubernetes / Helm ────────────────────────────────────────
+k8s-manifest=~/DevOps/k8s-manifest
+
+# ── Backend services (add your repos here) ───────────────────
+# my-backend=~/DevOps/my-backend
+# my-worker=~/DevOps/my-worker
+
+# ── Frontend / CMS (add your repos here) ─────────────────────
+# my-frontend=~/DevOps/my-frontend
+# my-cms=~/DevOps/my-cms
+
+# ── Add more repos below ─────────────────────────────────────
