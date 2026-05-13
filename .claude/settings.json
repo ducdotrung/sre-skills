@@ -99,6 +99,17 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/secret-scan.sh"
+          }
+        ]
+      }
     ]
   }
 }
