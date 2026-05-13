@@ -153,6 +153,7 @@ ordered resolution guide from that file.
 Rules:
 - Read only the reference file needed for the current ticket type.
 - Execute the matching playbook there exactly as written.
+- For `DEPLOY` tickets with SQL: the playbook will instruct you to spawn the **`sql-reviewer`** sub-agent. Pass it the ticket key, env, and all SQL URLs / inline blocks. Wait for the report before writing the guide.
 - Preserve the computed `EXECUTABILITY` and `SAFETY` labels from Steps 2–3.
 - For `UNKNOWN`, follow the unknown-triage instructions in the reference file and do not create a guide.
 

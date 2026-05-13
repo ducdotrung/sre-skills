@@ -28,3 +28,10 @@ By default all skill output is saved locally. Cloud integrations are optional �
 
 - `/sre-triage` — fetch, classify, and process open Jira tickets end-to-end.
 - `/sre-execute TICKET-XXXX [--dry-run]` — execute a single ticket's resolution guide step-by-step (SAFE/CAUTION/RISKY/MANUAL), collect TBD values, post completion to Jira.
+- `/sre-incident APP ENV SYMPTOM` — interactive incident debug: runs live kubectl/aws commands, analyses output, and suggests fixes.
+
+## Sub-Agents
+
+| Agent | Trigger |
+|---|---|
+| `sql-reviewer` | DEPLOY ticket with SQL — spawned automatically by the triage playbook; keeps SQL analysis in a clean context |

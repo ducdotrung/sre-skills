@@ -20,88 +20,42 @@ Parse from description: app name, target env, image tag, rollback image.
 
 **SQL Script Review (run before generating the ordered guide):**
 
-When the ticket contains SQL — either as one or more GitHub SQL file URLs or as inline SQL blocks in the description — apply the following review for **each** script or block:
-
-1. **Fetch / extract the SQL content:**
-   - **GitHub URL:** convert to raw URL and fetch:
-     `https://github.com/{your-github-org}/{repo}/blob/{branch}/{path}.sql` → `https://raw.githubusercontent.com/{your-github-org}/{repo}/{branch}/{path}.sql`
-   - **Local repo** (`.local-repos` has the repo path): read `{local-path}/{path}.sql` directly.
-   - **Inline SQL** (pasted in ticket description): extract the SQL block as-is; no fetch needed.
-
-2. Read the script and check for every item below:
-
-| Risk | What to look for |
-|---|---|
-| 🔴 Full-table wipe | `DELETE FROM {table}` or `UPDATE {table} SET` **without a `WHERE` clause** |
-| 🔴 Data loss | `DROP TABLE`, `DROP DATABASE`, `TRUNCATE TABLE` |
-| 🔴 Breaking schema change | `DROP COLUMN`, `RENAME COLUMN` — app may still reference the old name |
-| 🟠 Table lock (MySQL) | `ALTER TABLE` adding a `NOT NULL` column **without a `DEFAULT`** on a large table |
-| 🟠 Type change risk | `MODIFY COLUMN` / `ALTER COLUMN ... TYPE` — implicit cast may fail or truncate data |
-| 🟠 No transaction wrapper | Script not wrapped in `START TRANSACTION` / `BEGIN` … `COMMIT` — partial apply on failure |
-| 🟠 Sequence / auto_increment reset | `ALTER TABLE … AUTO_INCREMENT =` or `SELECT setval(…)` — collision risk if value too low |
-| 🟡 Unindexed large write | Mass `INSERT`/`UPDATE`/`DELETE` on a large table without batching — may cause lock timeout |
-| 🟡 Run order dependency | Script references objects created later in the same batch |
-
-3. **If any 🔴 or 🟠 risk is found**, post a Jira comment using `addCommentToJiraIssue` **before proceeding**:
+When the ticket contains SQL — either as one or more GitHub SQL file URLs or as inline SQL blocks in the description — **delegate to the `sql-reviewer` sub-agent**:
 
 ```
-⚠️ SQL Script Review — Potential Risk Found
+Use the sql-reviewer agent with:
+- Ticket key: {TICKET_KEY}
+- Target environment: {env}
+- SQL inputs: {list of GitHub URLs and/or inline SQL blocks from the ticket}
+```
 
-File: {github_url}
+The agent will fetch all scripts, run the full risk checklist, check rollback coverage, and return a structured report. Wait for the report before continuing.
 
-{For each risk found:}
-🔴/🟠 **{Risk name}**
-Line ~{n}: `{offending SQL snippet}`
-Concern: {plain-English explanation of what could go wrong}
-Suggestion: {how to fix or mitigate}
+**Act on the report:**
+
+| Report outcome | Action |
+|---|---|
+| 🔴 CRITICAL risk found | Post a Jira comment with the agent's findings. Block deploy until developer addresses. Set SAFETY = RISKY. |
+| 🟠 HIGH risk found | Post a Jira comment with the agent's findings. Proceed at SRE discretion. |
+| 🟡 MEDIUM or 🟢 OK | Note in the guide that scripts were reviewed and look clean. No Jira comment needed. |
+| Missing rollback (any risk level) | Include the agent's generated rollback reference in the Jira comment. |
+| FETCH_FAILED for any URL | Note in guide and Jira that the script could not be fetched and must be reviewed manually. |
+
+**Jira comment format (when posting findings):**
+
+```
+⚠️ SQL Script Review — {risk level} Risk Found
+
+{Paste the agent's Findings table for each affected script}
+
+{If rollback missing:}
+🔁 Suggested rollback (SRE-generated reference — developer should supply authoritative version):
+{Paste the agent's generated rollback SQL}
 
 Please confirm you have reviewed and are OK to proceed, or update the script.
 
 — SRE Bot 🤖
 ```
-
-4. If all checks pass (only 🟡 or none), proceed without a comment — note in the guide that scripts were reviewed and look clean.
-
-5. **Rollback check** — Regardless of risk level, check whether the script (or ticket description) includes a rollback / undo plan. Look for: a `-- rollback` section, a backup-table creation step, or explicit undo instructions from the developer.
-
-   If **no rollback is provided**, always post a dedicated Jira comment (separate from the risk comment, or appended to it if one was already posted):
-
-   ```
-   ⚠️ SQL Rollback — No rollback script provided
-
-   File: {github_url | "inline SQL in ticket description"}
-
-   A rollback plan was not found. **Developer should provide the authoritative rollback script — they know the data best.** The sample below is SRE-generated for reference only.
-
-   🔁 Suggested rollback (reference only):
-
-   {For each mutating statement in the script, generate the matching rollback pattern:}
-
-   -- Before UPDATE or DELETE: create a backup table immediately before execution
-   CREATE TABLE {table}_backup_{YYYYMMDD} AS SELECT * FROM {table} WHERE {same_condition};
-
-   -- Rollback UPDATE: restore original values from backup
-   UPDATE {table} t JOIN {table}_backup_{YYYYMMDD} b ON t.{pk} = b.{pk}
-     SET {each changed column} = b.{column};
-
-   -- Rollback DELETE: re-insert from backup
-   INSERT INTO {table} SELECT * FROM {table}_backup_{YYYYMMDD};
-
-   -- Rollback INSERT: delete inserted rows
-   DELETE FROM {table} WHERE {identifying_col} IN ({inserted_values});
-   -- If auto_increment was advanced, reset it:
-   ALTER TABLE {table} AUTO_INCREMENT = {previous_value};
-
-   -- Rollback ALTER TABLE ADD COLUMN:
-   ALTER TABLE {table} DROP COLUMN {new_column};
-
-   -- Rollback CREATE TABLE:
-   DROP TABLE IF EXISTS {new_table};
-
-   ⚠️ The _backup_{YYYYMMDD} table must be created immediately before execution, within the same DB session. Confirm the backup was created before running the main script.
-
-   — SRE Bot 🤖
-   ```
 
 **S3 Rollback check** — If the ticket includes an `aws s3 sync`, `aws s3 cp`, or `aws s3 rm` command, check whether a rollback plan is provided (e.g. "revert to version X" or a saved copy step). If not, always post a Jira comment:
 
