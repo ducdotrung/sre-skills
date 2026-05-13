@@ -35,6 +35,8 @@ By default all skill output is saved locally. Cloud integrations are optional �
   Full playbook: `.claude/skills/sre-triage.md`
 - `/sre-execute TICKET-XXXX [--dry-run]` — execute a single ticket's resolution guide step-by-step (SAFE/CAUTION/RISKY/MANUAL), collect TBD values, post completion to Jira.
   Full playbook: `.claude/skills/sre-execute.md`
+- `/sre-incident APP ENV SYMPTOM` — interactive incident debug: runs live kubectl/aws commands, analyses real output, and suggests fixes for live production issues.
+  Full playbook: `.claude/skills/sre-incident.md`
 
 ## Supporting Reference Files
 
