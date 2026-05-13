@@ -42,6 +42,7 @@ A reusable Claude Code skill set for SRE / DevOps teams. Automates Jira ticket t
 |---|---|---|
 | SRE Triage | `/sre-triage` | Fetch open tickets → classify → generate resolution guides (`output/guides/`) → update dashboard (`output/dashboard/`) → save notifications (`output/alerts/`) → backlog summary |
 | SRE Execute | `/sre-execute TICKET-XXXX [--dry-run]` | Execute a single ticket's resolution guide step-by-step with SAFE/CAUTION/RISKY/MANUAL confirmations → post completion to Jira |
+| SRE Incident | `/sre-incident APP ENV SYMPTOM` | Live incident debug — runs real kubectl/aws commands, interprets output, and suggests targeted fixes → saves incident report to `output/alerts/` |
 
 ## Output directories
 
@@ -66,6 +67,25 @@ Everything company-specific lives in two gitignored files:
 
 The playbooks and skill logic are fully generic — they reference `{placeholder}` values that get resolved from `sre-config.md` at runtime.
 
+## Security hooks
+
+Two Claude Code hooks run automatically on every session:
+
+| Hook | Trigger | Behaviour |
+|---|---|---|
+| `safety-guard.sh` | Before any Bash command | **Blocks** destructive commands (`kubectl delete`, `terraform destroy`, `git push --force`, `DROP TABLE`, etc.) — Claude cannot bypass this |
+| `secret-scan.sh` | After any Write or Edit | **Warns** (non-blocking) if a written file appears to contain secrets: AWS keys, API tokens, private IPs, JWTs, PEM blocks, etc. |
+
+Hook logic lives in `.claude/hooks/`. The Bash allow/deny list is in `.claude/settings.json`.
+
+## Sub-agents
+
+| Agent | When invoked | Purpose |
+|---|---|---|
+| `sql-reviewer` | DEPLOY ticket with SQL scripts | Fetches each SQL file, runs a structured risk analysis (CRITICAL/HIGH/MEDIUM/OK), checks rollback coverage, and returns a report — keeping the main triage context clean |
+
+Agent definitions live in `.claude/agents/`.
+
 ## Repository layout
 
 ```
@@ -77,9 +97,17 @@ pack.sh                              builds sre-skill-YYYYMMDD.zip for co-work u
 .local-repos                         (gitignored) your machine's repo paths, read by skills
 sre-config.md                        (gitignored) your team's infrastructure constants
 output/                              (gitignored) runtime output — guides, dashboard, alerts
-.claude/skills/
-  sre-triage.md                      /sre-triage skill definition
-  sre-execute.md                     /sre-execute skill — step-by-step ticket execution
+.claude/
+  settings.json                      Bash allow/deny list + hook configuration
+  skills/
+    sre-triage.md                    /sre-triage skill definition
+    sre-execute.md                   /sre-execute skill — step-by-step ticket execution
+    sre-incident.md                  /sre-incident skill — live incident debug
+  agents/
+    sql-reviewer.md                  SQL safety reviewer sub-agent
+  hooks/
+    safety-guard.sh                  PreToolUse: blocks destructive Bash commands
+    secret-scan.sh                   PostToolUse: warns on secrets in written files
 sre-triage/
   docs/                              infra overviews (terraform, k8s, DNS, etc.)
     infra-overview.md                main infra architecture overview — customize for your team
