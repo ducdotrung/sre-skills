@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sentry Triage Playbooks"
+  short_description: "Classify recent Sentry issues and generate incident playbooks."
+  default_prompt: "Classify recent Sentry issues from my configured Sentry instance and write a concise remediation playbook."
